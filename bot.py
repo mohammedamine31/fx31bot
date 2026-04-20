@@ -115,11 +115,19 @@ Fx31 News Bot 📡
 
 # MAIN LOOP
 def run_bot():
-    send("✅ البوت راهو يخدم الآن")
+    send("🟢 البوت راهو يخدم الآن")
+
+    global last_check_time
 
     while True:
         try:
             print("Running...")
+
+            current_time = time.time()
+
+            if current_time - last_check_time > 3600:
+                send("🟡 CHECK: البوت مازال يخدم ✔️")
+                last_check_time = current_time
 
             events = get_news()
 

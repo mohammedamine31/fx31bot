@@ -10,7 +10,7 @@ CHAT_ID = -1003962736289
 
 sent_ids = set()
 
-# ====== FLAGS ======
+# FLAGS
 flags = {
     "USD": "🇺🇸",
     "EUR": "🇪🇺",
@@ -22,7 +22,7 @@ flags = {
     "NZD": "🇳🇿"
 }
 
-# ====== FLASK ======
+# FLASK (باش يبقى شغال)
 app = Flask('')
 
 @app.route('/')
@@ -36,7 +36,7 @@ def run_web():
 def keep_alive():
     Thread(target=run_web).start()
 
-# ====== TELEGRAM ======
+# TELEGRAM
 def send(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(url, data={
@@ -45,7 +45,7 @@ def send(text):
         "parse_mode": "Markdown"
     })
 
-# ====== GET NEWS ======
+# GET NEWS
 def get_news():
     url = "https://www.forexfactory.com/calendar"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -59,9 +59,7 @@ def get_news():
     for row in rows:
         impact = row.select_one(".impact")
 
-        # 🔥 فلترة High Impact فقط
         if impact and "High" in impact.get("title", ""):
-
             currency = row.select_one(".calendar__currency")
             event = row.select_one(".calendar__event")
             forecast = row.select_one(".calendar__forecast")
@@ -84,12 +82,10 @@ def get_news():
 
     return events
 
-# ====== FORMAT ======
+# FORMAT
 def format_news(e):
-    flag = flags.get(e['currency'], "")
-    currency_display = f"{flag} {e['currency']}"
-
-    impact = "⚪ محايد"
+    flag = flags.get(e["currency"], "🌍")
+    impact = "⚪️ محايد"
 
     try:
         if e["actual"] and e["forecast"]:
@@ -103,44 +99,43 @@ def format_news(e):
     except:
         pass
 
-    return f"""
-📊 نتيجة الخبر
+    return f"""🚨 *خبر اقتصادي قوي*
 
-💱 {currency_display}
+{flag} {e['currency']}
 📊 {e['event']}
 
-📈 التوقعات: `{e['forecast']}`
-📉 النتيجة: `{e['actual']}`
+📈 التوقعات: {e['forecast']}
+📉 النتيجة: {e['actual']}
 
 📊 التأثير: {impact}
-━━━━━━━━━━━━━━━
-🤖 FX31 News Bot
+
+━━━━━━━━━━━━━━
+Fx31 News Bot 📡
 """
 
-# ====== MAIN ======
+# MAIN LOOP
 def run_bot():
     while True:
-        print("Running...")
+        try:
+            print("Running...")
 
-        events = get_news()
+            events = get_news()
 
-        for e in events:
-            if e["actual"] and e["id"] not in sent_ids:
-                send(format_news(e))
-                sent_ids.add(e["id"])
-                time.sleep(5)
+            for e in events:
+                if e["actual"] and e["id"] not in sent_ids:
+                    send(format_news(e))
+                    sent_ids.add(e["id"])
+                    time.sleep(3)
 
-        time.sleep(600)  # كل 10 دقائق
+            time.sleep(600)
 
-# ====== START ======
+        except Exception as error:
+            print("Error:", error)
+            time.sleep(10)
+
+# START
 keep_alive()
-def start_bot():
-    run_bot()
-
-keep_alive()
-
-from threading import Thread
-Thread(target=start_bot).start()
+Thread(target=run_bot).start()
 
 while True:
     time.sleep(60)

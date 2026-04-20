@@ -115,7 +115,8 @@ Fx31 News Bot 📡
 
 # MAIN LOOP
 def run_bot():
-      send("✅ البوت راهو يخدم الآن")
+    send("✅ البوت راهو يخدم الآن")
+
     while True:
         try:
             print("Running...")
@@ -131,8 +132,8 @@ def run_bot():
             time.sleep(600)
 
         except Exception as error:
-            print("Error:", error)
-            time.sleep(10)
+            print(error)
+            time.sleep(60)
 
 # START
 keep_alive()

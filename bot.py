@@ -1,51 +1,32 @@
 import requests
 from bs4 import BeautifulSoup
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
+from flask import Flask
+from threading import Thread
 
+# ================== CONFIG ==================
 TOKEN = "8714414653:AAGYv4-OJiG-Yc3AKMTrHEjAhBC7wVDJ7rI"
 CHAT_ID = -1003962736289
 
-sent_events = set()
+sent_news = set()
 
-def get_calendar():
-    url = "https://www.forexfactory.com/calendar"
-    headers = {"User-Agent": "Mozilla/5.0"}
+# ================== FLASK (KEEP ALIVE) ==================
+app = Flask('')
 
-    r = requests.get(url, headers=headers)
-    soup = BeautifulSoup(r.text, "html.parser")
+@app.route('/')
+def home():
+    return "Bot is running ✅"
 
-    events = []
-    rows = soup.select("tr.calendar__row")
+def run_web():
+    app.run(host='0.0.0.0', port=10000)
 
-    for row in rows:
-        impact = row.select_one(".impact")
+def keep_alive():
+    t = Thread(target=run_web)
+    t.start()
 
-        if impact and "High" in impact.get("title", ""):
-            time_el = row.select_one(".calendar__time")
-            currency = row.select_one(".calendar__currency")
-            event = row.select_one(".calendar__event")
-            forecast = row.select_one(".calendar__forecast")
-            actual = row.select_one(".calendar__actual")
-
-            event_time = time_el.text.strip() if time_el else ""
-            currency = currency.text.strip() if currency else ""
-            event = event.text.strip() if event else ""
-            forecast = forecast.text.strip() if forecast else ""
-            actual = actual.text.strip() if actual else ""
-
-            events.append({
-                "time": event_time,
-                "currency": currency,
-                "event": event,
-                "forecast": forecast,
-                "actual": actual
-            })
-
-    return events
-
-
-def send(text):
+# ================== TELEGRAM ==================
+def send_message(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(url, data={
         "chat_id": CHAT_ID,
@@ -53,67 +34,61 @@ def send(text):
         "parse_mode": "Markdown"
     })
 
+# ================== GET NEWS ==================
+def get_news():
+    url = "https://www.forexfactory.com/calendar"
+    headers = {"User-Agent": "Mozilla/5.0"}
 
-def format_before(e):
-    return f"""
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    news_list = []
+    rows = soup.select("tr.calendar__row")
+
+    for row in rows:
+        impact = row.select_one(".impact")
+
+        if impact and "High" in impact.get("title", ""):
+            currency = row.select_one(".calendar__currency")
+            event = row.select_one(".calendar__event")
+            forecast = row.select_one(".calendar__forecast")
+
+            currency = currency.text.strip() if currency else ""
+            event = event.text.strip() if event else ""
+            forecast = forecast.text.strip() if forecast else ""
+
+            unique_id = f"{currency}-{event}-{forecast}"
+
+            if unique_id not in sent_news:
+                sent_news.add(unique_id)
+
+                news_text = f"""
 🚨 *HIGH IMPACT NEWS* 🚨
 
-💱 *{e['currency']}*
-📊 *{e['event']}*
+💱 *Currency:* `{currency}`
+📊 *Event:* {event}
+📈 *Forecast:* `{forecast}`
 
-📈 Forecast: `{e['forecast']}`
-
-⏳ *Starts Soon*
 ━━━━━━━━━━━━━━━
-🤖 FX31 News Bot
+🤖 *FX31 News Bot*
 """
+                news_list.append(news_text)
 
+    return news_list
 
-def format_after(e):
-    bias = "⚪ Neutral"
-
-    if e["actual"] and e["forecast"]:
-        if e["actual"] > e["forecast"]:
-            bias = "🟢 Bullish"
-        elif e["actual"] < e["forecast"]:
-            bias = "🔴 Bearish"
-
-    return f"""
-📊 *NEWS RESULT*
-
-💱 *{e['currency']}*
-📊 *{e['event']}*
-
-📈 Forecast: `{e['forecast']}`
-📉 Actual: `{e['actual']}`
-
-🎯 Bias: {bias}
-━━━━━━━━━━━━━━━
-🤖 FX31 News Bot
-"""
-
-
-def run():
+# ================== MAIN LOOP ==================
+def run_bot():
     while True:
-        events = get_calendar()
+        print("Bot running...")
 
-        for e in events:
-            unique = f"{e['currency']}-{e['event']}-{e['time']}"
+        news = get_news()
 
-            # قبل الخبر
-            if unique not in sent_events:
-                send(format_before(e))
-                sent_events.add(unique)
-
-            # بعد الخبر
-            if e["actual"]:
-                result_id = unique + "-done"
-
-                if result_id not in sent_events:
-                    send(format_after(e))
-                    sent_events.add(result_id)
+        for item in news:
+            send_message(item)
+            time.sleep(5)  # anti spam
 
         time.sleep(600)  # كل 10 دقائق
 
-
-run()
+# ================== START ==================
+keep_alive()
+run_bot()

@@ -1,72 +1,119 @@
 import requests
+from bs4 import BeautifulSoup
 import time
-import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 TOKEN = "8714414653:AAGYv4-OJiG-Yc3AKMTrHEjAhBC7wVDJ7rI"
 CHAT_ID = -1003962736289
 
-news_samples = [
-    {
-        "currency": "USD 🇺🇸",
-        "event": "Non-Farm Employment Change",
-        "forecast": "180K",
-        "previous": "150K"
-    },
-    {
-        "currency": "EUR 🇪🇺",
-        "event": "ECB Interest Rate Decision",
-        "forecast": "4.25%",
-        "previous": "4.00%"
-    },
-    {
-        "currency": "GBP 🇬🇧",
-        "event": "CPI y/y",
-        "forecast": "3.1%",
-        "previous": "3.4%"
-    }
-]
+sent_events = set()
 
-def format_news(news):
-    time_now = datetime.now().strftime("%H:%M")
+def get_calendar():
+    url = "https://www.forexfactory.com/calendar"
+    headers = {"User-Agent": "Mozilla/5.0"}
 
-    text = f"""
-🚨 *HIGH IMPACT NEWS* 🚨
+    r = requests.get(url, headers=headers)
+    soup = BeautifulSoup(r.text, "html.parser")
 
-━━━━━━━━━━━━━━━━━━━
-💱 *Currency | العملة:* {news['currency']}
+    events = []
+    rows = soup.select("tr.calendar__row")
 
-📊 *Event | الخبر:*
-{news['event']}
+    for row in rows:
+        impact = row.select_one(".impact")
 
-📈 *Forecast | التوقع:* `{news['forecast']}`
-📉 *Previous | السابق:* `{news['previous']}`
+        if impact and "High" in impact.get("title", ""):
+            time_el = row.select_one(".calendar__time")
+            currency = row.select_one(".calendar__currency")
+            event = row.select_one(".calendar__event")
+            forecast = row.select_one(".calendar__forecast")
+            actual = row.select_one(".calendar__actual")
 
-⏰ *Time | الوقت:* {time_now}
-⏳ *Status | الحالة:* Coming Soon
+            event_time = time_el.text.strip() if time_el else ""
+            currency = currency.text.strip() if currency else ""
+            event = event.text.strip() if event else ""
+            forecast = forecast.text.strip() if forecast else ""
+            actual = actual.text.strip() if actual else ""
 
-━━━━━━━━━━━━━━━━━━━
-🟡 *Impact:* HIGH
-⚡ *Source:* Forex Factory
+            events.append({
+                "time": event_time,
+                "currency": currency,
+                "event": event,
+                "forecast": forecast,
+                "actual": actual
+            })
 
-🤖 *FX31 News Bot*
-"""
-    return text
+    return events
 
-def send_news():
+
+def send(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-
-    news = random.choice(news_samples)
-    text = format_news(news)
-
-    data = {
+    requests.post(url, data={
         "chat_id": CHAT_ID,
         "text": text,
         "parse_mode": "Markdown"
-    }
+    })
 
-    requests.post(url, data=data)
 
-while True:
-    send_news()
-    time.sleep(60)  # للتجربة فقط
+def format_before(e):
+    return f"""
+🚨 *HIGH IMPACT NEWS* 🚨
+
+💱 *{e['currency']}*
+📊 *{e['event']}*
+
+📈 Forecast: `{e['forecast']}`
+
+⏳ *Starts Soon*
+━━━━━━━━━━━━━━━
+🤖 FX31 News Bot
+"""
+
+
+def format_after(e):
+    bias = "⚪ Neutral"
+
+    if e["actual"] and e["forecast"]:
+        if e["actual"] > e["forecast"]:
+            bias = "🟢 Bullish"
+        elif e["actual"] < e["forecast"]:
+            bias = "🔴 Bearish"
+
+    return f"""
+📊 *NEWS RESULT*
+
+💱 *{e['currency']}*
+📊 *{e['event']}*
+
+📈 Forecast: `{e['forecast']}`
+📉 Actual: `{e['actual']}`
+
+🎯 Bias: {bias}
+━━━━━━━━━━━━━━━
+🤖 FX31 News Bot
+"""
+
+
+def run():
+    while True:
+        events = get_calendar()
+
+        for e in events:
+            unique = f"{e['currency']}-{e['event']}-{e['time']}"
+
+            # قبل الخبر
+            if unique not in sent_events:
+                send(format_before(e))
+                sent_events.add(unique)
+
+            # بعد الخبر
+            if e["actual"]:
+                result_id = unique + "-done"
+
+                if result_id not in sent_events:
+                    send(format_after(e))
+                    sent_events.add(result_id)
+
+        time.sleep(600)  # كل 10 دقائق
+
+
+run()

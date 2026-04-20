@@ -116,6 +116,7 @@ Fx31 News Bot 📡
 # MAIN LOOP
 def run_bot():
     while True:
+        send("✅ البوت راهو يخدم الآن")
         try:
             print("Running...")
 

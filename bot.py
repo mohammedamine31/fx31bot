@@ -1,52 +1,87 @@
 import requests
-from flask import Flask
-from threading import Thread
 import time
-import os
-# ================== CONFIG ==================
+import random
+
 TOKEN = "8714414653:AAGYv4-OJiG-Yc3AKMTrHEjAhBC7wVDJ7rI"
 CHAT_ID = -1003962736289
 
-# ====== FLASK ======
-app = Flask('')
+# ====== FLAGS ======
+flags = {
+    "USD": "🇺🇸",
+    "EUR": "🇪🇺",
+    "GBP": "🇬🇧",
+    "JPY": "🇯🇵"
+}
 
-@app.route('/')
-def home():
-    return "Bot is running ✅"
+# ====== DATA ======
+news_samples = [
+    {
+        "currency": "USD",
+        "event": "التغير في وظائف القطاع غير الزراعي",
+        "forecast": "180K",
+        "actual": "250K"
+    },
+    {
+        "currency": "EUR",
+        "event": "مؤشر أسعار المستهلك",
+        "forecast": "3.2%",
+        "actual": "2.8%"
+    },
+    {
+        "currency": "GBP",
+        "event": "قرار الفائدة",
+        "forecast": "5.25%",
+        "actual": "5.25%"
+    }
+]
 
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+# ====== FORMAT ======
+def format_news(news):
+    flag = flags.get(news["currency"], "")
+    currency_display = f"{flag} {news['currency']}"
 
-def keep_alive():
-    t = Thread(target=run_web)
-    t.start()
+    # تحديد التأثير
+    try:
+        a = float(news["actual"].replace("%","").replace("K",""))
+        f = float(news["forecast"].replace("%","").replace("K",""))
 
-# ====== TELEGRAM TEST ======
-def send_test():
+        if a > f:
+            impact = "🟢 إيجابي"
+        elif a < f:
+            impact = "🔴 سلبي"
+        else:
+            impact = "⚪ محايد"
+    except:
+        impact = "⚪ محايد"
+
+    return f"""
+📊 نتيجة الخبر
+
+💱 {currency_display}
+📊 {news['event']}
+
+📈 التوقعات: `{news['forecast']}`
+📉 النتيجة: `{news['actual']}`
+
+📊 التأثير: {impact}
+━━━━━━━━━━━━━━━
+🤖 FX31 News Bot
+"""
+
+# ====== SEND ======
+def send():
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
-    text = """
-🚀 TEST MESSAGE
-
-✅ Bot is working
-✅ Render is running
-✅ Flask is active
-
-🤖 FX31 Bot
-"""
+    news = random.choice(news_samples)
+    text = format_news(news)
 
     requests.post(url, data={
         "chat_id": CHAT_ID,
-        "text": text
+        "text": text,
+        "parse_mode": "Markdown"
     })
 
-# ====== MAIN ======
-keep_alive()
-
+# ====== LOOP ======
 while True:
-    print("Bot running...")
-
-    send_test()
-
-    time.sleep(60)  # كل دقيقة (باش تشوف بسرعة)
+    send()
+    time.sleep(60)  # كل دقيقة للتجربة

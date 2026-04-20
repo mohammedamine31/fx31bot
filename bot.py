@@ -125,7 +125,7 @@ def run_bot():
 
             current_time = time.time()
 
-            if current_time - last_check_time > 600:
+            if current_time - last_check_time >= 600:
                 send("🟡 CHECK: البوت مازال يخدم ✔️")
                 last_check_time = time_time
 
